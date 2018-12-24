@@ -4,6 +4,12 @@ globals [
   bus-doors
   bus-floor
   lanes
+  exit-tunnel
+  exit-door1
+  exit-door2
+  exit-door3
+  exit-door4
+  safety
 ]
 
 patches-own [
@@ -29,7 +35,7 @@ to setup-tunnel
     set accessible true
   ]
 
-  set walls patches with [abs pxcor > 9]
+  set walls patches with [abs pxcor > 9] ;; exit path through tunnel
   ask walls [
     set pcolor black
     set accessible false
@@ -40,6 +46,22 @@ to setup-tunnel
     set accessible true
   ]
   draw-road-lines
+  exit-path
+
+  set safety patches with [ pycor = min-pycor or pycor = max-pycor]
+
+end
+
+to exit-path
+  set exit-tunnel patches with [pxcor = -13 or pxcor = 13]
+  ask exit-tunnel [set pcolor grey  ]
+
+  set exit-door1 patches with [(pxcor >= 8 and pxcor <= 13) and (pycor >= 12 and pycor <= 13)] ask exit-door1 [set pcolor grey]
+  set exit-door2 patches with [(pxcor >= 8 and pxcor <= 13) and (pycor >= -8 and pycor <= -7)] ask exit-door2 [set pcolor grey]
+  set exit-door3 patches with [(pxcor >= -13 and pxcor <= -8) and (pycor >= 12 and pycor <= 13)] ask exit-door3 [set pcolor grey]
+  set exit-door4 patches with [(pxcor >= -13 and pxcor <= -8) and (pycor >= -8 and pycor <= -7)] ask exit-door4 [set pcolor grey]
+
+
 end
 
 to draw-road-lines
@@ -78,15 +100,17 @@ end
 to setup-people
   set-default-shape turtles "person"
 
-  create-turtles 1 [setxy 2 3]
-  create-turtles 1 [setxy 2 2]
-  create-turtles 1 [setxy 2 1]
-  create-turtles 1 [setxy 2 0]
-  create-turtles 1 [setxy 2 1]
-  create-turtles 1 [setxy 3 3]
-  create-turtles 1 [setxy 3 2]
-  create-turtles 1 [setxy 3 1]
-  create-turtles 1 [setxy 3 0]
+  create-turtles 1 [setxy 2.25 8] ask turtles [ set size 1.5 ]
+  create-turtles 1 [setxy 2.25 6] ask turtles [ set size 1.5 ]
+  create-turtles 1 [setxy 2.25 4] ask turtles [ set size 1.5 ]
+  create-turtles 1 [setxy 2.25 2] ask turtles [ set size 1.5 ]
+  create-turtles 1 [setxy 2.25 0] ask turtles [ set size 1.5 ]
+
+  create-turtles 1 [setxy 3.5 8] ask turtles [ set size 1.5 ]
+  create-turtles 1 [setxy 3.5 6] ask turtles [ set size 1.5 ]
+  create-turtles 1 [setxy 3.5 4] ask turtles [ set size 1.5 ]
+  create-turtles 1 [setxy 3.5 2] ask turtles [ set size 1.5 ]
+  create-turtles 1 [setxy 3.5 0] ask turtles [ set size 1.5 ]
 
 end
 
@@ -133,6 +157,17 @@ to leave-bus
 end
 
 to escape-tunnel
+  let d distance min-one-of safety [ distance myself ]
+
+  let n neighbors with
+                [ (not any? turtles-here) and accessible and (distance min-one-of safety [ distance myself ] < d ) and not member? self bus-floor]
+       ifelse any? n
+              [move-to min-one-of n [smoke]
+              ]
+              [set n neighbors with [ (not any? turtles-here) and accessible and not member? self bus-floor]
+                if any? n [move-to min-one-of n [smoke]]
+              ]
+
 end
 
 to-report number-of-lanes
