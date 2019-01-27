@@ -1,80 +1,78 @@
 globals [
-  walls
-  bus
-  bus-doors
-  bus-floor
-  lanes
-  exit-tunnel
-  exit-door1
-  exit-door2
-  exit-door3
-  exit-door4
-  safety
+  tunnel-walls-patches
+  tunnel-floor-patches
+  bus-borders-patches
+  bus-doors-patches
+  bus-floor-patches
+  sidewalk-patches
+  saving-patches
+  lethal-level-gen
+  ventilation
+  max-attempts
 ]
 
 patches-own [
+  original-color
+  burnable
+  burning
+  smoke-reachable
+  slowing-coefficient
   smoke
   accessible
 ]
 
 turtles-own [
+  risk
+  age
+  num-attempts
+  speed
+  lethal-level
 ]
 
 to setup
   clear-all
   setup-tunnel
-  setup-people
-  setup-bus 1 -2
+  setup-bus
+  setup-fire-conditions
+  setup-passengers
   reset-ticks
 end
 
 
 to setup-tunnel
   ask patches [
-    set pcolor grey
     set accessible true
+    set pcolor grey
   ]
 
-  set walls patches with [abs pxcor > 9] ;; exit path through tunnel
-  ask walls [
+  ;;create tunnel walls
+  set tunnel-walls-patches patches with [
+    abs pxcor > 20
+  ]
+  ask tunnel-walls-patches [
     set pcolor black
     set accessible false
   ]
-  set lanes n-values (number-of-lanes + 1) [ n -> (n - (number-of-lanes / 2)) * 7 ] ; list of lane borders xcor with width of
-  ask patches with [abs pxcor < 8] [
+
+  ;;set lanes on floor
+  draw-line -13 yellow 0
+  draw-line 13 yellow 0
+  draw-line 0 white 0.5
+
+  ;;create tunnel floor
+  set tunnel-floor-patches patches with [pcolor = grey]
+  ask tunnel-floor-patches [
     set pcolor grey - 1.5 + random-float 0.25
     set accessible true
   ]
-  draw-road-lines
-  exit-path
 
-  set safety patches with [ pycor = min-pycor or pycor = max-pycor]
-
-end
-
-to exit-path
-  set exit-tunnel patches with [pxcor = -13 or pxcor = 13]
-  ask exit-tunnel [set pcolor grey  ]
-
-  set exit-door1 patches with [(pxcor >= 8 and pxcor <= 13) and (pycor >= 12 and pycor <= 13)] ask exit-door1 [set pcolor grey]
-  set exit-door2 patches with [(pxcor >= 8 and pxcor <= 13) and (pycor >= -8 and pycor <= -7)] ask exit-door2 [set pcolor grey]
-  set exit-door3 patches with [(pxcor >= -13 and pxcor <= -8) and (pycor >= 12 and pycor <= 13)] ask exit-door3 [set pcolor grey]
-  set exit-door4 patches with [(pxcor >= -13 and pxcor <= -8) and (pycor >= -8 and pycor <= -7)] ask exit-door4 [set pcolor grey]
-
-
-end
-
-to draw-road-lines
-  let x (first lanes) - 1 ; start to the left of the road
-  while [ x <= last lanes + 1 ] [
-    if member? x lanes [
-      ; draw lines on road patches that lane borders
-      ifelse abs x = (number-of-lanes / 2) * 7
-        [ draw-line x yellow 0 ]  ; yellow for the sides of the road
-        [ draw-line x white 0.5 ] ; dashed white between lanes
-    ]
-    set x x + 1 ; move right one patch
+  ;;create safe floor
+  set sidewalk-patches patches with [abs pxcor >= 16 and abs pxcor <= 20]
+  ask sidewalk-patches [
+    set pcolor white - 1.5 - random-float 0.5
   ]
+
+  set saving-patches patches with [(pycor = min-pycor or pycor = max-pycor) and (abs pxcor > 16 and abs pxcor < 20)]
 end
 
 to draw-line [ x line-color gap ]
@@ -96,58 +94,179 @@ to draw-line [ x line-color gap ]
   ]
 end
 
-
-to setup-people
-  set-default-shape turtles "person"
-
-  create-turtles 1 [setxy 2.25 8] ask turtles [ set size 1.5 ]
-  create-turtles 1 [setxy 2.25 6] ask turtles [ set size 1.5 ]
-  create-turtles 1 [setxy 2.25 4] ask turtles [ set size 1.5 ]
-  create-turtles 1 [setxy 2.25 2] ask turtles [ set size 1.5 ]
-  create-turtles 1 [setxy 2.25 0] ask turtles [ set size 1.5 ]
-
-  create-turtles 1 [setxy 3.5 8] ask turtles [ set size 1.5 ]
-  create-turtles 1 [setxy 3.5 6] ask turtles [ set size 1.5 ]
-  create-turtles 1 [setxy 3.5 4] ask turtles [ set size 1.5 ]
-  create-turtles 1 [setxy 3.5 2] ask turtles [ set size 1.5 ]
-  create-turtles 1 [setxy 3.5 0] ask turtles [ set size 1.5 ]
-
-end
-
-to setup-bus [x y] ; lower left corner of bus
-  set bus-floor patches with [(pxcor >= x + 1 and pxcor <= x + 4) and (pycor >= y + 1 and pycor <= y + 11)]
-  ask bus-floor [
+to setup-bus
+  set bus-floor-patches patches with [(pxcor >= 3 and pxcor <= 10) and (pycor >= -13 and pycor <= 13)]
+  ask bus-floor-patches [
     set pcolor grey - 1
+    set accessible true
   ]
 
-  set bus patches with [((pxcor >= x  and pxcor <= x + 4) and (pycor = y or pycor = y + 12)) or
-                        ((pxcor = x or pxcor = x + 4) and (pycor >= y and pycor <= y + 12))]
-  ask bus [
+  set bus-borders-patches patches with [((pxcor >= 2 and pxcor <= 11) and (pycor = -14 or pycor = 14)) or
+                                        ((pxcor = 2 or pxcor = 11) and (pycor >= -14 and pycor <= 14))]
+  ask bus-borders-patches [
     set pcolor grey - 3
     set accessible false
   ]
 
-  set bus-doors patches with [(pxcor = x + 4) and ((pycor >= y + 11 and pycor <= y + 11.5) or
-                                                   (pycor >= y + 5 and pycor <= y + 6))]
-  ask bus-doors [
+  set bus-doors-patches patches with [(pxcor = 11) and ((pycor >= 11 and pycor <= 13) or
+                                                       (pycor >= -1 and pycor <= 1) or
+                                                       (pycor >= -13 and pycor <= -11))]
+  ask bus-doors-patches [
     set pcolor grey - 1
-    set accessible true
+    set accessible false
+  ]
+end
+
+to setup-passengers
+  set-default-shape turtles "person"
+  crt #OfPassengers
+  ask turtles [
+    set size 3
+    set color white
+    set age (random 85) + 5
+    set speed 0.5 - ((int (age / 17 )) / 10)
+    if speed = 0.4 [ set speed 0.5]
+    if speed = 0 [ set speed 0.4]
+    set max-attempts 150
+    set num-attempts 0
+
+    setxy ((random 8) + 3) ((random 26) - 13)
+    separate-passengers
+
+    if pcolor = red [set color green]
+  ]
+  set lethal-level-gen 4000
+  ask turtles [set lethal-level (lethal-level-gen * speed)]
+end
+
+to separate-passengers
+  if any? other turtles-here [
+    setxy ((random 8) + 3) ((random 26) - 13)
+    separate-passengers
+  ]
+end
+
+to setup-fire-conditions
+  set ventilation 0
+  ask patches [
+    set original-color pcolor
+    if (random 100) < FireDensity   [set burnable true]
+    set burning false
+    set smoke-reachable true
+    set smoke 0
+  ]
+  ask tunnel-walls-patches [
+    set burnable false
+    set smoke-reachable false
+  ]
+  ask sidewalk-patches [
+    set burnable false
+  ]
+  ask patch 3 13 [
+    set burning true
+    ifelse FireOnBus [set pcolor red] [set pcolor red - 2]
   ]
 end
 
 to go
-  start-smoke
-  leave-bus
-  escape-tunnel
+  set-ventilation
+  propagate-fire
+  propagate-smoke
+  set-doors-opening
+  escape
+  tick
 end
 
-to start-smoke
+to set-ventilation
+  if ticks > VentilationAutostart [set ventilation 1]
 end
 
-to leave-bus
-  let d distance min-one-of bus-doors [ distance myself ]
+to propagate-fire
+  ask patches with [burning = true] [
+    set smoke smoke + SmokeRelease
+    ask neighbors4 with [burnable = true] [
+      let probability ProbabilityOfFireSpread
+      if random 100 < probability [
+        set burning true
+        set pcolor red
+        ask bus-floor-patches [ if burning and not FireOnBus [set pcolor red - 2]]
+      ]
+    ]
+  ]
+end
+
+to propagate-smoke
+  ;;SMOKE PROPAGATION
+  ask patches with [smoke < 0.5 ] [ set smoke 0 ]
+  ask patches with [ smoke > 0.5 ] [
+    let smoke-to-give smoke / 16        ;; 32 is a randomic number. On each tick, 1/4 of the total smoke is given to the neighbors. Can we get a real number?
+     ask neighbors4 with [  smoke-reachable = true ] [
+        let direction towards myself
+        ;; the burning patch is north of you
+        ;; so the south wind reduces the smoke here
+        if direction = 0 [
+          set smoke smoke + smoke-to-give + (smoke-to-give * VentDirection * ventilation) ;;The third term plays only if there is wind
+          ask myself [
+            set smoke smoke - (smoke-to-give + (smoke-to-give * VentDirection * ventilation))
+          ]
+        ]
+        ;; the burning patch is south of you
+        ;;so the south wind increases the smoke here
+        if direction = 180 [
+          set smoke smoke + smoke-to-give - (smoke-to-give * VentDirection * ventilation) ;;The third term plays only if there is wind
+          ask myself [
+            set smoke smoke - (smoke-to-give - (smoke-to-give * VentDirection * ventilation))
+          ]
+        ]
+        ;; West and East are given always the same amount of smoke
+        if direction = 90 or direction = 270 [
+          set smoke smoke + smoke-to-give
+          ask myself [
+            set smoke smoke - smoke-to-give
+          ]
+        ]
+        ifelse smoke > 100 [set smoke 100]
+                           [if SeeSmokeEffect and not burning [set pcolor grey - (smoke / 100)]]
+        if smoke < 0.5 and not burning and SeeSmokeEffect [ set pcolor original-color]
+
+      ]
+    ]
+end
+
+to set-doors-opening
+  if ticks > TimeToOpenDoors and DriverAlive [ ask bus-doors-patches with [pcolor = original-color][set pcolor lime + 2
+                                                                                      set accessible true
+                                                                                      ;; set smoke-reachable true (JUST FOR FUTURE IMPROVEMENTS)
+                                                                                      ]]
+  if ticks > PassengerPatienceTime [
+    ask bus-doors-patches [let n turtles-on neighbors
+                             if any? n [ask n [if member? patch-here bus-floor-patches [ ask myself [if smoke = 0 [set pcolor lime + 2] set accessible true]]]
+                            ]
+    ]
+  ]
+end
+
+to escape
+  ask turtles [
+    let i 0
+    while [ i < speed ] [
+      if pcolor = red [ set color green ]
+      if risk > lethal-level [ set color green ]
+      ifelse color = green
+        [ set speed 0 ]
+        [
+          set risk ([smoke] of patch-here) * ticks
+          if member? patch-here saving-patches [die]
+          ifelse member? patch-here bus-floor-patches [escape-from-bus] [escape-from-tunnel]
+          set i i + ( 0.5 + ([slowing-coefficient] of patch-here) / 10)  ]
+    ]
+  ]
+end
+
+to escape-from-bus
+  let d distance min-one-of bus-doors-patches [ distance myself ]
   let n neighbors with
-   [ (not any? turtles-here) and accessible and (distance min-one-of bus-doors [ distance myself ] < d)]
+   [ (not any? turtles-here) and accessible and (distance min-one-of bus-doors-patches [ distance myself ] < d)]
   ifelse any? n
     [move-to min-one-of n [smoke]]
     [
@@ -156,45 +275,55 @@ to leave-bus
     ]
 end
 
-to escape-tunnel
-  let d distance min-one-of safety [ distance myself ]
-
-  let n neighbors with
-                [ (not any? turtles-here) and accessible and (distance min-one-of safety [ distance myself ] < d ) and not member? self bus-floor]
+to escape-from-tunnel
+  let d distance min-one-of saving-patches [ distance myself ]
+  ifelse num-attempts < max-attempts
+    [ let n neighbors with
+                [ (not any? turtles-here) and accessible and (distance min-one-of saving-patches [ distance myself ] < d ) and not member? self bus-floor-patches]
        ifelse any? n
               [move-to min-one-of n [smoke]
+              ;; set num-attempts num-attempts - 1
               ]
-              [set n neighbors with [ (not any? turtles-here) and accessible and not member? self bus-floor]
+              [set n neighbors with [ (not any? turtles-here) and accessible and not member? self bus-floor-patches]
                 if any? n [move-to min-one-of n [smoke]]
+                set num-attempts num-attempts + 1
               ]
+    ]
+    [  if num-attempts = max-attempts [set num-attempts 2 * max-attempts]
+      let n neighbors with
+                [ (not any? turtles-here) and accessible and (distance min-one-of saving-patches [ distance myself ] > d ) and not member? self bus-floor-patches]
+       ifelse any? n
+              [move-to min-one-of n [smoke]]
+              [set n neighbors with [ (not any? turtles-here) and accessible and not member? self bus-floor-patches]
+                if any? n [move-to min-one-of n [smoke]]
+                set num-attempts num-attempts - 1
+                if num-attempts = max-attempts [set num-attempts 0]
+               ]
+    ]
 
-end
-
-to-report number-of-lanes
-  report 2
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
 210
 10
-713
-514
+708
+509
 -1
 -1
-15.0
+10.0
 1
 10
 1
 1
 1
 0
+0
+0
 1
-1
-1
--16
-16
--16
-16
+-24
+24
+-24
+24
 0
 0
 1
@@ -225,15 +354,201 @@ BUTTON
 78
 NIL
 go
-NIL
+T
 1
 T
-TURTLE
+OBSERVER
 NIL
 NIL
 NIL
 NIL
 1
+
+SLIDER
+719
+11
+891
+44
+#OfPassengers
+#OfPassengers
+5
+50
+41.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+718
+49
+890
+82
+FireDensity
+FireDensity
+0
+100
+25.0
+1
+1
+NIL
+HORIZONTAL
+
+SWITCH
+18
+91
+130
+124
+FireOnBus
+FireOnBus
+0
+1
+-1000
+
+SLIDER
+717
+88
+889
+121
+VentilationAutostart
+VentilationAutostart
+0
+1000
+478.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+716
+123
+888
+156
+SmokeRelease
+SmokeRelease
+0
+100
+22.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+715
+159
+896
+192
+ProbabilityOfFireSpread
+ProbabilityOfFireSpread
+0
+100
+38.0
+1
+1
+NIL
+HORIZONTAL
+
+SWITCH
+17
+127
+133
+160
+DriverAlive
+DriverAlive
+0
+1
+-1000
+
+SLIDER
+716
+198
+888
+231
+TimeToOpenDoors
+TimeToOpenDoors
+0
+1000
+172.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+717
+239
+897
+272
+PassengerPatienceTime
+PassengerPatienceTime
+0
+1000
+1000.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+716
+278
+888
+311
+VentDirection
+VentDirection
+-1
+1
+1.0
+1
+1
+NIL
+HORIZONTAL
+
+SWITCH
+17
+163
+163
+196
+SeeSmokeEffect
+SeeSmokeEffect
+0
+1
+-1000
+
+MONITOR
+210
+509
+267
+554
+Dead
+count turtles with [color = green ]
+0
+1
+11
+
+MONITOR
+267
+509
+324
+554
+Saved
+#OfPassengers - (count turtles)
+0
+1
+11
+
+MONITOR
+324
+509
+388
+554
+% Saved
+100 * ((#OfPassengers - (count turtles)) / #OfPassengers)
+0
+1
+11
 
 @#$#@#$#@
 ## WHAT IS IT?
